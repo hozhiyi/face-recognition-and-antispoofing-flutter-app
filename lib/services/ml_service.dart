@@ -45,32 +45,6 @@ class MLService {
     }
   }
 
-  Future initializeAntiSpoofingModel() async {
-    try {
-      // Load the anti-spoofing model
-      this._antiSpoofingInterpreter = await Interpreter.fromAsset('anti_spoofing_model.tflite');
-    } catch (e) {
-      print('Failed to load anti-spoofing model.');
-      print(e);
-    }
-  }
-
-  Future<bool> isFaceSpoofedWithModel(CameraImage cameraImage, Face? face) async {
-    if (_antiSpoofingInterpreter == null) {
-      throw Exception('Anti-spoofing interpreter is null');
-    }
-    if (face == null) throw Exception('Face is null');
-    List input = _preProcess(cameraImage, face);
-
-    List output = List.generate(1, (index) => List.filled(1, 0));
-
-    // Run the anti-spoofing model
-    this._antiSpoofingInterpreter?.run(input, output);
-
-    // Check if the model's output is higher than the anti-spoofing threshold
-    return output[0][0] > antiSpoofingThreshold;
-  }
-
   void setCurrentPrediction(CameraImage cameraImage, Face? face) {
     if (_interpreter == null) throw Exception('Interpreter is null');
     if (face == null) throw Exception('Face is null');
@@ -80,21 +54,14 @@ class MLService {
     List output = List.generate(1, (index) => List.filled(192, 0));
 
     this._interpreter?.run(input, output);
+
+    print("==> ori output : " + output.toString());
+
     output = output.reshape([192]);
 
-    this._predictedData = List.from(output);
-  }
+    print("==> mod output : " + output.toString());
 
-  bool isFaceSpoofed(List<double> predictedData) {
-    // Assuming that predictedData is the output from the face recognition model
-    // Check if the model's output is higher than 0.5 (adjust the threshold as needed)
-    if (predictedData[0] > 0.5) {
-      print('Face is likely fake. Spoof detected!');
-      return false;
-    } else {
-      print('Face is genuine. Proceeding with prediction.');
-      return true;
-    }
+    this._predictedData = List.from(output);
   }
 
   Future<User?> predict() async {
@@ -178,5 +145,43 @@ class MLService {
 
   dispose() {}
 
+  Future initializeAntiSpoofingModel() async {
+    try {
+      // Load the anti-spoofing model
+      this._antiSpoofingInterpreter =
+          await Interpreter.fromAsset('anti_spoofing_model.tflite');
+    } catch (e) {
+      print('Failed to load anti-spoofing model.');
+      print(e);
+    }
+  }
 
+  Future<bool> isFaceSpoofedWithModel(
+      CameraImage cameraImage, Face? face) async {
+    if (_antiSpoofingInterpreter == null) {
+      throw Exception('Anti-spoofing interpreter is null');
+    }
+    if (face == null) throw Exception('Face is null');
+    List input = _preProcess(cameraImage, face);
+
+    List output = List.generate(1, (index) => List.filled(1, 0));
+
+    // Run the anti-spoofing model
+    this._antiSpoofingInterpreter?.run(input, output);
+
+    // Check if the model's output is higher than the anti-spoofing threshold
+    return output[0][0] > antiSpoofingThreshold;
+  }
+
+  bool isFaceSpoofed(List<double> predictedData) {
+    // Assuming that predictedData is the output from the face recognition model
+    // Check if the model's output is higher than 0.5 (adjust the threshold as needed)
+    if (predictedData[0] > 0.5) {
+      print('Face is likely fake. Spoof detected!');
+      return false;
+    } else {
+      print('Face is genuine. Proceeding with prediction.');
+      return true;
+    }
+  }
 }
