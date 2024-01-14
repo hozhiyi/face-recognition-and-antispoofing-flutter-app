@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:camera/camera.dart';
 import 'package:face_net_authentication/locator.dart';
-import 'package:face_net_authentication/pages/warning.dart';
 import 'package:face_net_authentication/pages/models/user.model.dart';
+import 'package:face_net_authentication/pages/warning.dart';
 import 'package:face_net_authentication/pages/widgets/auth_button.dart';
 import 'package:face_net_authentication/pages/widgets/camera_detection_preview.dart';
 import 'package:face_net_authentication/pages/widgets/camera_header.dart';
@@ -13,6 +13,7 @@ import 'package:face_net_authentication/services/camera.service.dart';
 import 'package:face_net_authentication/services/face_detector_service.dart';
 import 'package:face_net_authentication/services/ml_service.dart';
 import 'package:flutter/material.dart';
+// import 'package:image_picker/image_picker.dart';
 
 class SignIn extends StatefulWidget {
   const SignIn({Key? key}) : super(key: key);
@@ -30,6 +31,9 @@ class SignInState extends State<SignIn> {
 
   bool _isPictureTaken = false;
   bool _isInitializing = false;
+  // List<?> _imagePath = [];
+  List<String> _imagePath = [];
+  Future<List<double>?> FASoutputs = Future.value([]);
 
   @override
   void initState() {
@@ -67,6 +71,9 @@ class SignInState extends State<SignIn> {
     assert(image != null, 'Image is null');
     await _faceDetectorService.detectFacesFromImage(image!);
     if (_faceDetectorService.faceDetected) {
+      //  TODO
+      FASoutputs = _mlService.isFaceSpoofedWithModel(
+          image, _faceDetectorService.faces[0]);
       _mlService.setCurrentPrediction(image, _faceDetectorService.faces[0]);
     }
     if (mounted) setState(() {});
@@ -95,6 +102,18 @@ class SignInState extends State<SignIn> {
 
   Future<void> onTap() async {
     await takePicture();
+
+    // if the probability of FASoutputs then return warning page
+    // else continue to sign in page
+    final outputs = await FASoutputs;
+    if (outputs != null && outputs.isNotEmpty && outputs[0] > 0.5) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => WarningPage(),
+        ),
+      );
+    }
+
     if (_faceDetectorService.faceDetected) {
       User? user = await _mlService.predict();
       if (user != null) {

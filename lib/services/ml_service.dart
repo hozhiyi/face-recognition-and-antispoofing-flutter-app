@@ -6,19 +6,52 @@ import 'package:camera/camera.dart';
 import 'package:face_net_authentication/pages/db/databse_helper.dart';
 import 'package:face_net_authentication/pages/models/user.model.dart';
 import 'package:face_net_authentication/services/image_converter.dart';
+import 'package:flutter/services.dart';
 import 'package:google_ml_kit/google_ml_kit.dart';
 import 'package:image/image.dart' as imglib;
+import 'package:onnxruntime/onnxruntime.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
+
+Future<OrtSession> loadModelFromAssets(String assetPath) async {
+  OrtEnv.instance.init();
+  final sessionOptions = OrtSessionOptions();
+  const assetFileName = 'assets/FaceBagNet_color_96.onnx';
+  final rawAssetFile = await rootBundle.load(assetFileName);
+  final bytes = rawAssetFile.buffer.asUint8List();
+  final session = OrtSession.fromBuffer(bytes, sessionOptions);
+
+  // // Get the directory to store the model file
+  // final dir = await getApplicationDocumentsDirectory();
+
+  // // Create a file in the directory
+  // final file = File('${dir.path}/FaceBagNet_color_96.onnx');
+
+  // // Write the model file
+  // final modelData = await rootBundle.load(assetPath);
+  // await file.writeAsBytes(
+  //   modelData.buffer
+  //       .asUint8List(modelData.offsetInBytes, modelData.lengthInBytes),
+  // );
+
+  // // Create session options
+  // final sessionOptions = OrtSessionOptions();
+
+  // // Load the model
+  // final session = OrtSession.fromFile(file, sessionOptions);
+
+  return session;
+}
 
 class MLService {
   Interpreter? _interpreter;
   double threshold = 0.5;
 
-  Interpreter? _antiSpoofingInterpreter;
+  // Interpreter? _antiSpoofingInterpreter;
   double antiSpoofingThreshold = 0.5;
 
   List _predictedData = [];
   List get predictedData => _predictedData;
+  double dist = 0;
 
   Future initialize() async {
     late Delegate delegate;
@@ -37,7 +70,7 @@ class MLService {
       var interpreterOptions = InterpreterOptions()..addDelegate(delegate);
 
       this._interpreter = await Interpreter.fromAsset(
-          'ep050-loss23.614.tflite', //mobilefacenet.tflite
+          'assets/ep050-loss23.614.tflite', //mobilefacenet.tflite
           options: interpreterOptions);
     } catch (e) {
       print('Failed to load model.');
@@ -51,28 +84,42 @@ class MLService {
     List input = _preProcess(cameraImage, face);
 
     input = input.reshape([1, 112, 112, 3]);
-    List output = List.generate(1, (index) => List.filled(192, 0));
+    List output = List.generate(1, (index) => List.filled(256, 0));
 
     this._interpreter?.run(input, output);
 
-    print("==> ori output : " + output.toString());
+    // print("==> ori output : " + output.toString());
 
-    output = output.reshape([192]);
+    output = output.reshape([256]);
 
-    print("==> mod output : " + output.toString());
+    // print("==> mod output : " + output.toString());
 
     this._predictedData = List.from(output);
   }
 
   Future<User?> predict() async {
+    // CHECK
+    // print("===> this._predictedData" + this._predictedData.toString());
     return _searchResult(this._predictedData);
   }
 
   List _preProcess(CameraImage image, Face faceDetected) {
     imglib.Image croppedImage = _cropFace(image, faceDetected);
-    imglib.Image img = imglib.copyResizeCropSquare(croppedImage, 112);
+
+    imglib.Image img;
+
+    // if not anti-spoofing
+
+    img = imglib.copyResizeCropSquare(croppedImage, 112);
+
+    // img = imglib.copyResizeCropSquare(croppedImage, 96);
 
     Float32List imageAsList = imageToByteListFloat32(img);
+
+    // normalization
+    for (int i = 0; i < imageAsList.length; i++) {
+      imageAsList[i] = imageAsList[i];
+    }
     return imageAsList;
   }
 
@@ -100,9 +147,12 @@ class MLService {
     for (var i = 0; i < 112; i++) {
       for (var j = 0; j < 112; j++) {
         var pixel = image.getPixel(j, i);
-        buffer[pixelIndex++] = (imglib.getRed(pixel) - 128) / 128;
-        buffer[pixelIndex++] = (imglib.getGreen(pixel) - 128) / 128;
-        buffer[pixelIndex++] = (imglib.getBlue(pixel) - 128) / 128;
+        // buffer[pixelIndex++] = (imglib.getRed(pixel) - 128) / 128;
+        // buffer[pixelIndex++] = (imglib.getGreen(pixel) - 128) / 128;
+        // buffer[pixelIndex++] = (imglib.getBlue(pixel) - 128) / 128;
+        buffer[pixelIndex++] = imglib.getRed(pixel) / 255;
+        buffer[pixelIndex++] = imglib.getGreen(pixel) / 255;
+        buffer[pixelIndex++] = imglib.getBlue(pixel) / 255;
       }
     }
     return convertedBytes.buffer.asFloat32List();
@@ -119,7 +169,12 @@ class MLService {
     print('users.length=> ${users.length}');
 
     for (User u in users) {
+      // CHECK
+      // print("===> u.modelData" + (u.modelData).toString());
+      // print("===> predictedData" + predictedData.toString());
       currDist = _euclideanDistance(u.modelData, predictedData);
+      // currDist = _cosineDistance(u.modelData, predictedData);
+
       if (currDist <= threshold && currDist < minDist) {
         print('User ID: ${u.user}, Current Distance: $currDist');
         minDist = currDist;
@@ -143,34 +198,154 @@ class MLService {
     this._predictedData = value;
   }
 
+  double _cosineDistance(List? e1, List? e2) {
+    try {
+      if (e1 == null || e2 == null || e1.length != e2.length) {
+        throw Exception("Invalid input lists for cosine distance calculation.");
+      }
+
+      List<double> e1AsDoubles = e1.cast<double>();
+      List<double> e2AsDoubles = e2.cast<double>();
+
+      double dotProduct = 0.0;
+      double normE1 = 0.0;
+      double normE2 = 0.0;
+
+      // Calculate dot product and individual norms
+      for (int i = 0; i < e1AsDoubles.length; i++) {
+        dotProduct += e1AsDoubles[i] * e2AsDoubles[i];
+        normE1 += e1AsDoubles[i] * e1AsDoubles[i];
+        normE2 += e2AsDoubles[i] * e2AsDoubles[i];
+      }
+
+      normE1 = sqrt(normE1);
+      normE2 = sqrt(normE2);
+
+      // Check for potential division by zero
+      if (normE1 * normE2 == 0) {
+        return 0.0; // Or handle as appropriate
+      }
+
+      // Calculate cosine similarity and convert to distance
+      return 1.0 - (dotProduct / (normE1 * normE2));
+    } catch (error) {
+      print("Error in cosine distance calculation: $error");
+      // Handle the error appropriately, e.g., return a default value or throw a different exception
+      return 0.0; // Example default value
+    }
+  }
+
   dispose() {}
 
+  // ANTI SPOOFING
+  //   void setCurrentPrediction(CameraImage cameraImage, Face? face) {
+  //   if (_interpreter == null) throw Exception('Interpreter is null');
+  //   if (face == null) throw Exception('Face is null');
+  //   List input = _preProcess(cameraImage, face);
+
+  //   input = input.reshape([1, 112, 112, 3]);
+  //   List output = List.generate(1, (index) => List.filled(256, 0));
+
+  //   this._interpreter?.run(input, output);
+
+  //   print("==> ori output : " + output.toString());
+
+  //   output = output.reshape([256]);
+
+  //   print("==> mod output : " + output.toString());
+
+  //   this._predictedData = List.from(output);
+  // }
+
   Future initializeAntiSpoofingModel() async {
+    // String modelPath = "assets/facebagnet.pth";
+
     try {
       // Load the anti-spoofing model
-      this._antiSpoofingInterpreter =
-          await Interpreter.fromAsset('anti_spoofing_model.tflite');
+
+      // pytorch_mobile
+      // this._antiSpoofingModel = await PyTorchMobile.loadModel(modelPath);
+
+      // onnxruntime
+      OrtEnv.instance.init();
+      final sessionOptions = OrtSessionOptions();
+      const assetFileName = 'assets/FaceBagNet_color_96.onnx';
+      final rawAssetFile = await rootBundle.load(assetFileName);
+      final bytes = rawAssetFile.buffer.asUint8List();
+      final session = OrtSession.fromBuffer(bytes, sessionOptions);
     } catch (e) {
       print('Failed to load anti-spoofing model.');
       print(e);
     }
   }
 
-  Future<bool> isFaceSpoofedWithModel(
+  Future<List<double>?> isFaceSpoofedWithModel(
       CameraImage cameraImage, Face? face) async {
-    if (_antiSpoofingInterpreter == null) {
-      throw Exception('Anti-spoofing interpreter is null');
+    print("===> isFaceSpoofedWithModel Starts");
+
+    try {
+      // Assuming you have a method to load the model from assets
+      final session =
+          await loadModelFromAssets('assets/FaceBagNet_color_96.onnx');
+
+      // Check if face is null before passing it to _preProcess
+      if (face == null) throw Exception('Face is null');
+      // List<double> input = _preProcess(cameraImage, face).cast<double>();
+
+      // List input = _preProcess(cameraImage, face, true);
+      List input = _preProcess(cameraImage, face);
+      print("===> input: " + input.toString());
+
+      // input = input.reshape([1, 96, 96, 3]);
+      // input = input.sublist(0, 27648).reshape([1, 96, 96, 3]);
+
+      // Convert the list of doubles to a list of floats
+
+      // Create OrtValue from input
+      final shape = [1, 3, 96, 96];
+      final inputOrt = OrtValueTensor.createTensorWithDataList(input, shape);
+
+      // Create inputs map
+      final inputs = {'onnx::Gather_0': inputOrt};
+
+      // Create run options
+      final runOptions = OrtRunOptions();
+
+      // Run the model
+      final outputs = session.run(runOptions, inputs);
+
+      final FAStensor = outputs[0]?.value;
+
+      print("===> outputs.length: " + outputs.length.toString());
+      print("===> FAStensor: " + FAStensor.toString());
+
+      List<double> FASTensorList = [];
+
+      if (FAStensor != null &&
+          FAStensor is List<List<double>> &&
+          FAStensor.isNotEmpty) {
+        FASTensorList = FAStensor[0];
+      }
+
+      // use softmax to get probabilities of the FASTensorList
+      // List<double> scores = [-1.7774, 1.7695];
+      List<double> probabilities = softmax(FASTensorList);
+      print("===> probabilities: " +
+          probabilities.toString()); // prints the probabilities
+      // List<double> probabilitiesTest = softmax(scores);
+      // print("===> probabilitiesTest: " +
+      //     probabilitiesTest.toString()); // prints the probabilities
+
+      // release onnx components
+      inputOrt.release();
+      runOptions.release();
+      session.release();
+      print("===> isFaceSpoofedWithModel Ends");
+      return probabilities;
+    } catch (e) {
+      print('An error occurred: $e');
+      return null;
     }
-    if (face == null) throw Exception('Face is null');
-    List input = _preProcess(cameraImage, face);
-
-    List output = List.generate(1, (index) => List.filled(1, 0));
-
-    // Run the anti-spoofing model
-    this._antiSpoofingInterpreter?.run(input, output);
-
-    // Check if the model's output is higher than the anti-spoofing threshold
-    return output[0][0] > antiSpoofingThreshold;
   }
 
   bool isFaceSpoofed(List<double> predictedData) {
@@ -183,5 +358,19 @@ class MLService {
       print('Face is genuine. Proceeding with prediction.');
       return true;
     }
+  }
+
+  List<double> softmax(List<double> scores) {
+    double maxScore = scores.reduce(max);
+    List<double> expScores =
+        scores.map((score) => exp(score - maxScore)).toList();
+    double sumExpScores = expScores.reduce((a, b) => a + b);
+    return expScores.map((score) => score / sumExpScores).toList();
+  }
+}
+
+extension Precision on double {
+  double toFloat() {
+    return double.parse(this.toStringAsFixed(2));
   }
 }
