@@ -39,6 +39,9 @@ dependencies:
   sqflite: ^2.0.2
   get_it: ^7.2.0
   intl: ^0.18.1
+  pytorch_mobile: ^0.2.2
+  onnxruntime: ^1.3.0
+  # onnxruntime: ^0.0.2
 
 dev_dependencies:
   flutter_test:
@@ -61,6 +64,7 @@ flutter:
     - assets/logo.png
     - assets/signup.png
     - assets/ep050-loss23.614.tflite
+    - assets/FaceBagNet_color_96.onnx
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
