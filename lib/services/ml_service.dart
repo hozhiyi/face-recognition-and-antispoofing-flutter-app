@@ -81,7 +81,14 @@ class MLService {
   void setCurrentPrediction(CameraImage cameraImage, Face? face) {
     if (_interpreter == null) throw Exception('Interpreter is null');
     if (face == null) throw Exception('Face is null');
-    List input = _preProcess(cameraImage, face);
+
+    // List input = _preProcess(cameraImage, face);
+    // _preProcess starts
+    imglib.Image croppedImage = _cropFace(cameraImage, face);
+    imglib.Image img;
+    img = imglib.copyResizeCropSquare(croppedImage, 112);
+    List input = imageToByteListFloat32(img);
+    // _preProcess ends
 
     input = input.reshape([1, 112, 112, 3]);
     List output = List.generate(1, (index) => List.filled(256, 0));
@@ -105,16 +112,11 @@ class MLService {
 
   List _preProcess(CameraImage image, Face faceDetected) {
     imglib.Image croppedImage = _cropFace(image, faceDetected);
-
     imglib.Image img;
 
-    // if not anti-spoofing
+    img = imglib.copyResizeCropSquare(croppedImage, 96);
 
-    img = imglib.copyResizeCropSquare(croppedImage, 112);
-
-    // img = imglib.copyResizeCropSquare(croppedImage, 96);
-
-    Float32List imageAsList = imageToByteListFloat32(img);
+    Float32List imageAsList = imageToByteListFloat32Spoof(img);
 
     // normalization
     for (int i = 0; i < imageAsList.length; i++) {
@@ -146,6 +148,25 @@ class MLService {
 
     for (var i = 0; i < 112; i++) {
       for (var j = 0; j < 112; j++) {
+        var pixel = image.getPixel(j, i);
+        // buffer[pixelIndex++] = (imglib.getRed(pixel) - 128) / 128;
+        // buffer[pixelIndex++] = (imglib.getGreen(pixel) - 128) / 128;
+        // buffer[pixelIndex++] = (imglib.getBlue(pixel) - 128) / 128;
+        buffer[pixelIndex++] = imglib.getRed(pixel) / 255;
+        buffer[pixelIndex++] = imglib.getGreen(pixel) / 255;
+        buffer[pixelIndex++] = imglib.getBlue(pixel) / 255;
+      }
+    }
+    return convertedBytes.buffer.asFloat32List();
+  }
+
+  Float32List imageToByteListFloat32Spoof(imglib.Image image) {
+    var convertedBytes = Float32List(1 * 96 * 96 * 3);
+    var buffer = Float32List.view(convertedBytes.buffer);
+    int pixelIndex = 0;
+
+    for (var i = 0; i < 96; i++) {
+      for (var j = 0; j < 96; j++) {
         var pixel = image.getPixel(j, i);
         // buffer[pixelIndex++] = (imglib.getRed(pixel) - 128) / 128;
         // buffer[pixelIndex++] = (imglib.getGreen(pixel) - 128) / 128;
@@ -238,24 +259,6 @@ class MLService {
   dispose() {}
 
   // ANTI SPOOFING
-  //   void setCurrentPrediction(CameraImage cameraImage, Face? face) {
-  //   if (_interpreter == null) throw Exception('Interpreter is null');
-  //   if (face == null) throw Exception('Face is null');
-  //   List input = _preProcess(cameraImage, face);
-
-  //   input = input.reshape([1, 112, 112, 3]);
-  //   List output = List.generate(1, (index) => List.filled(256, 0));
-
-  //   this._interpreter?.run(input, output);
-
-  //   print("==> ori output : " + output.toString());
-
-  //   output = output.reshape([256]);
-
-  //   print("==> mod output : " + output.toString());
-
-  //   this._predictedData = List.from(output);
-  // }
 
   Future initializeAntiSpoofingModel() async {
     // String modelPath = "assets/facebagnet.pth";
@@ -290,16 +293,8 @@ class MLService {
 
       // Check if face is null before passing it to _preProcess
       if (face == null) throw Exception('Face is null');
-      // List<double> input = _preProcess(cameraImage, face).cast<double>();
 
-      // List input = _preProcess(cameraImage, face, true);
       List input = _preProcess(cameraImage, face);
-      print("===> input: " + input.toString());
-
-      // input = input.reshape([1, 96, 96, 3]);
-      // input = input.sublist(0, 27648).reshape([1, 96, 96, 3]);
-
-      // Convert the list of doubles to a list of floats
 
       // Create OrtValue from input
       final shape = [1, 3, 96, 96];
@@ -328,13 +323,11 @@ class MLService {
       }
 
       // use softmax to get probabilities of the FASTensorList
-      // List<double> scores = [-1.7774, 1.7695];
       List<double> probabilities = softmax(FASTensorList);
+      // probabilities = [0.6734, 0.3266];
+      // probabilities = [0.3349, 0.6651];
       print("===> probabilities: " +
           probabilities.toString()); // prints the probabilities
-      // List<double> probabilitiesTest = softmax(scores);
-      // print("===> probabilitiesTest: " +
-      //     probabilitiesTest.toString()); // prints the probabilities
 
       // release onnx components
       inputOrt.release();
@@ -346,6 +339,51 @@ class MLService {
       print('An error occurred: $e');
       return null;
     }
+  }
+
+  List<List<List<int>>> convertImageToList(imglib.Image image) {
+    int numChannels = 4; // Assuming the image is in RGBA format
+
+    List<List<List<int>>> convertedImage = List.generate(
+        image.height,
+        (_) => List.generate(
+            image.width, (_) => List<int>.filled(numChannels, 0)));
+
+    for (int i = 0; i < image.height; i++) {
+      for (int j = 0; j < image.width; j++) {
+        int pixel = image.getPixelSafe(i, j);
+        convertedImage[i][j][0] = imglib.getRed(pixel);
+        convertedImage[i][j][1] = imglib.getGreen(pixel);
+        convertedImage[i][j][2] = imglib.getBlue(pixel);
+        convertedImage[i][j][3] = imglib.getAlpha(pixel);
+      }
+    }
+
+    return convertedImage;
+  }
+
+  List<List<List<int>>> transposeImage(List<List<List<int>>> image) {
+    int width = image.length;
+    int height = image[0].length;
+    int depth = image[0][0].length;
+
+    List<List<List<int>>> transposedImage = List.generate(
+      depth,
+      (_) => List.generate(
+        width,
+        (_) => List<int>.filled(height, 0),
+      ),
+    );
+
+    for (int i = 0; i < width; i++) {
+      for (int j = 0; j < height; j++) {
+        for (int k = 0; k < depth; k++) {
+          transposedImage[k][i][j] = image[i][j][k];
+        }
+      }
+    }
+
+    return transposedImage;
   }
 
   bool isFaceSpoofed(List<double> predictedData) {

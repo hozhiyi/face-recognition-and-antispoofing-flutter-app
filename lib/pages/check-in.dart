@@ -107,26 +107,34 @@ class SignInState extends State<SignIn> {
     // else continue to sign in page
     final outputs = await FASoutputs;
     if (outputs != null && outputs.isNotEmpty && outputs[0] > 0.5) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => WarningPage(),
+      // display a text box saying that the user is a spoof
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          content: Text('Spoof detected!'),
         ),
       );
-    }
 
-    if (_faceDetectorService.faceDetected) {
-      User? user = await _mlService.predict();
-      if (user != null) {
-        var bottomSheetController = scaffoldKey.currentState!
-            .showBottomSheet((context) => signInSheet(user: user));
-        bottomSheetController.closed.whenComplete(_reload);
-      } else {
-        // If user is null, navigate to another page
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => WarningPage(),
-          ),
-        );
+      // Navigator.of(context).push(
+      //   MaterialPageRoute(
+      //     builder: (context) => WarningPage(),
+      //   ),
+      // );
+    } else {
+      if (_faceDetectorService.faceDetected) {
+        User? user = await _mlService.predict();
+        if (user != null) {
+          var bottomSheetController = scaffoldKey.currentState!
+              .showBottomSheet((context) => signInSheet(user: user));
+          bottomSheetController.closed.whenComplete(_reload);
+        } else {
+          // If user is null, navigate to another page
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => WarningPage(),
+            ),
+          );
+        }
       }
     }
   }

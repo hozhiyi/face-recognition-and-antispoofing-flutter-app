@@ -6,6 +6,7 @@ import 'package:face_net_authentication/pages/widgets/app_button.dart';
 import 'package:face_net_authentication/services/camera.service.dart';
 import 'package:face_net_authentication/services/ml_service.dart';
 import 'package:flutter/material.dart';
+
 import '../home.dart';
 import 'app_text_field.dart';
 
@@ -52,6 +53,11 @@ class _AuthActionButtonState extends State<AuthActionButton> {
   Future _signIn(context) async {
     String password = _passwordTextEditingController.text;
     if (this.predictedUser!.password == password) {
+      // Insert the check-in time for the user
+      await DatabaseHelper.instance
+          .insertCheckInTime(this.predictedUser!.user, DateTime.now());
+      //  print all data from database
+      // DatabaseHelper.instance.printAllData();
       Navigator.push(
           context,
           MaterialPageRoute(
