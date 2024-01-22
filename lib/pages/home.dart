@@ -84,7 +84,9 @@ class _MyHomePageState extends State<MyHomePage> {
                       SizedBox(
                         height: 20,
                       ),
-                      Image(image: AssetImage('assets/signup.png')), // assets/signup.svg
+                      Image(
+                          image: AssetImage(
+                              'assets/signup.png')), // assets/signup.svg
                       Container(
                         width: MediaQuery.of(context).size.width * 0.8,
                         child: Column(
@@ -128,7 +130,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             child: Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(10),
-                                color: Colors.white,
+                                color: Color(0xFF0F0BDB),
                                 boxShadow: <BoxShadow>[
                                   BoxShadow(
                                     color: Colors.blue.withOpacity(0.1),
@@ -145,13 +147,15 @@ class _MyHomePageState extends State<MyHomePage> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    'Check In',
-                                    style: TextStyle(color: Color(0xFF0F0BDB)),
+                                    'Clock In',
+                                    // style: TextStyle(color: Color(0xFF0F0BDB)),
+                                    style: TextStyle(color: Colors.white),
                                   ),
                                   SizedBox(
                                     width: 10,
                                   ),
-                                  Icon(Icons.login, color: Color(0xFF0F0BDB))
+                                  // Icon(Icons.login, color: Color(0xFF0F0BDB))
+                                  Icon(Icons.login, color: Colors.white)
                                 ],
                               ),
                             ),
@@ -171,7 +175,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             child: Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(10),
-                                color: Color(0xFF0F0BDB),
+                                color: Colors.white,
                                 boxShadow: <BoxShadow>[
                                   BoxShadow(
                                     color: Colors.blue.withOpacity(0.1),
@@ -189,12 +193,13 @@ class _MyHomePageState extends State<MyHomePage> {
                                 children: [
                                   Text(
                                     'Register',
-                                    style: TextStyle(color: Colors.white),
+                                    style: TextStyle(color: Color(0xFF0F0BDB)),
                                   ),
                                   SizedBox(
                                     width: 10,
                                   ),
-                                  Icon(Icons.person_add, color: Colors.white)
+                                  Icon(Icons.person_add,
+                                      color: Color(0xFF0F0BDB))
                                 ],
                               ),
                             ),

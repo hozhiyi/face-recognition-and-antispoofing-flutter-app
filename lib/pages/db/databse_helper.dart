@@ -15,6 +15,9 @@ class DatabaseHelper {
   static final columnPassword = 'password';
   static final columnModelData = 'model_data';
 
+  // data for attendance
+  static final columnCheckInTime = 'checkintime';
+
   DatabaseHelper._privateConstructor();
   static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
 
@@ -38,7 +41,8 @@ class DatabaseHelper {
             $columnId INTEGER PRIMARY KEY,
             $columnUser TEXT NOT NULL,
             $columnPassword TEXT NOT NULL,
-            $columnModelData TEXT NOT NULL
+            $columnModelData TEXT NOT NULL,
+            $columnCheckInTime TEXT
           )
           ''');
   }
@@ -46,6 +50,15 @@ class DatabaseHelper {
   Future<int> insert(User user) async {
     Database db = await instance.database;
     return await db.insert(table, user.toMap());
+  }
+
+  Future<int> insertCheckInTime(String username, DateTime checkInTime) async {
+    Database db = await instance.database;
+    Map<String, dynamic> row = {
+      columnId: username,
+      columnCheckInTime: checkInTime.toIso8601String(),
+    };
+    return await db.insert(table, row);
   }
 
   Future<List<User>> queryAllUsers() async {
@@ -57,5 +70,13 @@ class DatabaseHelper {
   Future<int> deleteAll() async {
     Database db = await instance.database;
     return await db.delete(table);
+  }
+
+  Future<void> printAllData() async {
+    Database db = await instance.database;
+    List<Map<String, dynamic>> rows = await db.query(table);
+    for (var row in rows) {
+      print(row);
+    }
   }
 }

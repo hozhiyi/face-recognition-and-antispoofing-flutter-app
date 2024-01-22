@@ -336,6 +336,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.9.1"
+  n_dimensional_array:
+    dependency: "direct main"
+    description:
+      name: n_dimensional_array
+      sha256: a28979eff2dec8784c4d3c1713b31f7716b3ea92b3bda3aa83ac413658a83c44
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.2"
   onnxruntime:
     dependency: "direct main"
     description:
@@ -646,5 +654,5 @@ packages:
     source: hosted
     version: "6.3.0"
 sdks:
-  dart: ">=3.0.0 <4.0.0"
+  dart: ">=3.0.1 <4.0.0"
   flutter: ">=3.10.0"
