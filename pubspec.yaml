@@ -67,3 +67,5 @@ flutter:
     - assets/signup.png
     - assets/ep050-loss23.614.tflite
     - assets/FaceBagNet_color_96.onnx
+    - assets/AntiSpoofing_bin_1.5_128.onnx
+    - assets/AntiSpoofing_print-replay_128.onnx
