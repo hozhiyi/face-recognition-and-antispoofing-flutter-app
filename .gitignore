@@ -54,5 +54,6 @@ android/key.properties
 # File-based project format
 *.iws
 
-# IntelliJ
 out/
+.flutter-plugins-dependencies
+.dart_tool/package_config.json
