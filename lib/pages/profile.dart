@@ -7,7 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'home.dart';
 
-final String currentDate = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
+final String currentDate =
+    DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
 
 class Profile extends StatelessWidget {
   const Profile(this.username, {Key? key, required this.imagePath})
@@ -54,13 +55,13 @@ class Profile extends StatelessWidget {
                 margin: EdgeInsets.all(20),
                 padding: EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Color(0xFFFEFFC1),
+                  color: Colors.blue.shade50,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Column(
                   children: [
                     Icon(
-                      Icons.warning_amber_outlined,
+                      Icons.check_circle_outline_rounded,
                       size: 30,
                     ),
                     SizedBox(
@@ -76,7 +77,7 @@ class Profile extends StatelessWidget {
               ),
               Spacer(),
               AppButton(
-                text: "LOG OUT",
+                text: "BACK",
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -87,7 +88,7 @@ class Profile extends StatelessWidget {
                   Icons.logout,
                   color: Colors.white,
                 ),
-                color: Color(0xFFFF6161),
+                color: Colors.blue.shade900,
               ),
               SizedBox(
                 height: 20,

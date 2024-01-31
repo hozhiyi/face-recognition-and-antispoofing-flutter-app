@@ -386,18 +386,6 @@ class MLService {
     return transposedImage;
   }
 
-  bool isFaceSpoofed(List<double> predictedData) {
-    // Assuming that predictedData is the output from the face recognition model
-    // Check if the model's output is higher than 0.5 (adjust the threshold as needed)
-    if (predictedData[0] > 0.5) {
-      print('Face is likely fake. Spoof detected!');
-      return false;
-    } else {
-      print('Face is genuine. Proceeding with prediction.');
-      return true;
-    }
-  }
-
   List<double> softmax(List<double> scores) {
     double maxScore = scores.reduce(max);
     List<double> expScores =
