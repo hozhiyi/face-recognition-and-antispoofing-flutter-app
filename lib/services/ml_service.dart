@@ -10,6 +10,8 @@ import 'package:flutter/services.dart';
 import 'package:google_ml_kit/google_ml_kit.dart';
 import 'package:image/image.dart' as imglib;
 import 'package:onnxruntime/onnxruntime.dart';
+import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart' as path;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 class MLService {
@@ -47,19 +49,34 @@ class MLService {
     }
   }
 
-  void setCurrentPrediction(CameraImage cameraImage, Face? face) {
+  Future<void> setCurrentPrediction(CameraImage cameraImage, Face? face) async {
     if (_interpreter == null) throw Exception('Interpreter is null');
     if (face == null) throw Exception('Face is null');
 
     // List input = _preProcess(cameraImage, face);
     // _preProcess starts
     imglib.Image croppedImage = _cropFace(cameraImage, face);
+
+    // save the cropped image
+    // await saveImage('assets/croppedImage-fr.jpg', croppedImage);
+
     imglib.Image img;
     img = imglib.copyResizeCropSquare(croppedImage, 112);
     List input = imageToByteListFloat32(img, 112);
     // _preProcess ends
 
+    // try {
+    //   // save the resized img as jpg
+    //   final png = imglib.encodePng(img);
+    //   // use _localFile to save the image
+    //   File file = await _localFile;
+    //   await File('assets/resizedImage-fr.png').writeAsBytes(png);
+    // } catch (e) {
+    //   print('Error: $e');
+    // }
+
     input = input.reshape([1, 112, 112, 3]);
+    print("==> input : " + input.toString());
     List output = List.generate(1, (index) => List.filled(256, 0));
 
     this._interpreter?.run(input, output);
@@ -86,7 +103,8 @@ class MLService {
     OrtEnv.instance.init();
     final sessionOptions = OrtSessionOptions();
     // const assetFileName = 'assets/FaceBagNet_color_96.onnx';
-    const assetFileName = 'assets/AntiSpoofing_print-replay_128.onnx';
+    // const assetFileName = 'assets/AntiSpoofing_print-replay_128.onnx';
+    const assetFileName = 'assets/2.7_80x80_MiniFASNetV2.onnx';
 
     final rawAssetFile = await rootBundle.load(assetFileName);
     final bytes = rawAssetFile.buffer.asUint8List();
@@ -95,6 +113,7 @@ class MLService {
     return session;
   }
 
+  // ORIGINAL
   Future<List<double>?> isFaceSpoofedWithModel(
       CameraImage cameraImage, Face? face) async {
     print("===> isFaceSpoofedWithModel Starts");
@@ -103,14 +122,16 @@ class MLService {
       // Assuming you have a method to load the model from assets
       final session = await loadModelFromAssets();
 
-      // Check if face is null before passing it to _preProcess
       if (face == null) throw Exception('Face is null');
 
-      List input = _preProcess(cameraImage, face);
+      Future<List> input = _preProcess(cameraImage, face);
 
       // Create OrtValue from input
-      final shape = [1, 3, 128, 128];
-      final inputOrt = OrtValueTensor.createTensorWithDataList(input, shape);
+      // final shape = [1, 3, 128, 128];
+      final shape = [1, 3, 80, 80];
+      // final shape = [1, 80, 80, 3];
+      final inputOrt =
+          OrtValueTensor.createTensorWithDataList(await input, shape);
       final inputName = session.inputNames[0];
 
       // Create inputs map
@@ -154,6 +175,71 @@ class MLService {
     }
   }
 
+  // MODIFIED
+  Future<List?> MODIFIEDisFaceSpoofedWithModel(
+      CameraImage cameraImage, Face? face) async {
+    print("===> isFaceSpoofedWithModel Starts");
+
+    try {
+      // Assuming you have a method to load the model from assets
+      final session = await loadModelFromAssets();
+
+      if (face == null) throw Exception('Face is null');
+
+      final processedData = await _MODIFIEDpreProcess(cameraImage, face);
+      // Access img and imageAsList from the returned list
+      final processedImg = processedData[0] as imglib.Image;
+      final input = processedData[1] as Float32List;
+
+      // Create OrtValue from input
+      // final shape = [1, 3, 128, 128];
+      final shape = [1, 3, 80, 80];
+      // final shape = [1, 80, 80, 3];
+      final inputOrt =
+          OrtValueTensor.createTensorWithDataList(await input, shape);
+      final inputName = session.inputNames[0];
+
+      // Create inputs map
+      final inputs = {inputName: inputOrt};
+
+      // Create run options
+      final runOptions = OrtRunOptions();
+
+      // Run the model
+      final outputs = session.run(runOptions, inputs);
+
+      final FAStensor = outputs[0]?.value;
+
+      print("===> outputs.length: " + outputs.length.toString());
+      print("===> FAStensor: " + FAStensor.toString());
+
+      List<double> FASTensorList = [];
+
+      if (FAStensor != null &&
+          FAStensor is List<List<double>> &&
+          FAStensor.isNotEmpty) {
+        FASTensorList = FAStensor[0];
+      }
+
+      // use softmax to get probabilities of the FASTensorList
+      List<double> probabilities = softmax(FASTensorList);
+      // probabilities = [0.6734, 0.3266];
+      // probabilities = [0.3349, 0.6651];
+      print("===> probabilities: " +
+          probabilities.toString()); // prints the probabilities
+
+      // release onnx components
+      inputOrt.release();
+      runOptions.release();
+      session.release();
+      print("===> isFaceSpoofedWithModel Ends");
+      return [processedImg, probabilities];
+    } catch (e) {
+      print('An error occurred: $e');
+      return null;
+    }
+  }
+
   List<double> softmax(List<double> scores) {
     double maxScore = scores.reduce(max);
     List<double> expScores =
@@ -162,19 +248,52 @@ class MLService {
     return expScores.map((score) => score / sumExpScores).toList();
   }
 
-  List _preProcess(CameraImage image, Face faceDetected) {
+  // ORIGINAL
+  Future<List> _preProcess(CameraImage image, Face faceDetected) async {
     imglib.Image croppedImage = _cropFace(image, faceDetected);
+
     imglib.Image img;
+    // img = imglib.copyResizeCropSquare(croppedImage, 128);
+    img = imglib.copyResizeCropSquare(croppedImage, 80);
+    final directory = await path.getApplicationDocumentsDirectory();
+    final file = File(join(directory.path, 'resized.png'));
+    // print the image path
+    print(file.path);
+    await file.writeAsBytes(imglib.encodePng(img));
+    // new File("resized.png").writeAsBytesSync(imglib.encodePng(img));
 
-    img = imglib.copyResizeCropSquare(croppedImage, 128);
-
-    Float32List imageAsList = imageToByteListFloat32(croppedImage, 128);
+    // Float32List imageAsList = imageToByteListFloat32(croppedImage, 128);
+    Float32List imageAsList = imageToByteListFloat32(croppedImage, 80);
 
     // normalization
     for (int i = 0; i < imageAsList.length; i++) {
       imageAsList[i] = imageAsList[i];
     }
     return imageAsList;
+  }
+
+  // MODIFIED
+  Future<List> _MODIFIEDpreProcess(CameraImage image, Face faceDetected) async {
+    imglib.Image croppedImage = _cropFace(image, faceDetected);
+
+    imglib.Image img;
+    // img = imglib.copyResizeCropSquare(croppedImage, 128);
+    img = imglib.copyResizeCropSquare(croppedImage, 80);
+    final directory = await path.getApplicationDocumentsDirectory();
+    final file = File(join(directory.path, 'resized.png'));
+    // print the image path
+    print(file.path);
+    await file.writeAsBytes(imglib.encodePng(img));
+    // new File("resized.png").writeAsBytesSync(imglib.encodePng(img));
+
+    // Float32List imageAsList = imageToByteListFloat32(croppedImage, 128);
+    Float32List imageAsList = imageToByteListFloat32(croppedImage, 80);
+
+    // normalization
+    for (int i = 0; i < imageAsList.length; i++) {
+      imageAsList[i] = imageAsList[i];
+    }
+    return [img, imageAsList];
   }
 
   imglib.Image _cropFace(CameraImage image, Face faceDetected) {
@@ -204,9 +323,12 @@ class MLService {
         // buffer[pixelIndex++] = (imglib.getRed(pixel) - 128) / 128;
         // buffer[pixelIndex++] = (imglib.getGreen(pixel) - 128) / 128;
         // buffer[pixelIndex++] = (imglib.getBlue(pixel) - 128) / 128;
-        buffer[pixelIndex++] = imglib.getRed(pixel) / 255;
-        buffer[pixelIndex++] = imglib.getGreen(pixel) / 255;
-        buffer[pixelIndex++] = imglib.getBlue(pixel) / 255;
+        // buffer[pixelIndex++] = imglib.getRed(pixel) / 255;
+        // buffer[pixelIndex++] = imglib.getGreen(pixel) / 255;
+        // buffer[pixelIndex++] = imglib.getBlue(pixel) / 255;
+        buffer[pixelIndex++] = imglib.getRed(pixel) / 1;
+        buffer[pixelIndex++] = imglib.getGreen(pixel) / 1;
+        buffer[pixelIndex++] = imglib.getBlue(pixel) / 1;
       }
     }
     return convertedBytes.buffer.asFloat32List();
@@ -255,6 +377,14 @@ class MLService {
   dispose() {
     _interpreter?.close();
   }
+
+  // Future<void> saveImage(filePath, imglib.Image image) async {
+  //   // Encode the image as JPG
+  //   List<int> jpgBytes = imglib.encodeJpg(image);
+
+  //   // Write the bytes to a file
+  //   await File(filePath).writeAsBytes(jpgBytes);
+  // }
 }
 
 extension Precision on double {
