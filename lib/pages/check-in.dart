@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:face_net_authentication/locator.dart';
@@ -13,6 +14,7 @@ import 'package:face_net_authentication/services/camera.service.dart';
 import 'package:face_net_authentication/services/face_detector_service.dart';
 import 'package:face_net_authentication/services/ml_service.dart';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as imglib;
 // import 'package:image_picker/image_picker.dart';
 
 class SignIn extends StatefulWidget {
@@ -26,13 +28,14 @@ class SignInState extends State<SignIn> {
   CameraService _cameraService = locator<CameraService>();
   FaceDetectorService _faceDetectorService = locator<FaceDetectorService>();
   MLService _mlService = locator<MLService>();
+  // late imglib.Image processedImage;
+  // initialize processedImage
+  imglib.Image processedImage = imglib.Image(0, 0);
 
   GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
 
   bool _isPictureTaken = false;
   bool _isInitializing = false;
-  // List<?> _imagePath = [];
-  List<String> _imagePath = [];
   Future<List<double>?> FASoutputs = Future.value([]);
 
   @override
@@ -69,13 +72,28 @@ class SignInState extends State<SignIn> {
 
   Future<void> _predictFacesFromImage({@required CameraImage? image}) async {
     assert(image != null, 'Image is null');
+
     await _faceDetectorService.detectFacesFromImage(image!);
+
     if (_faceDetectorService.faceDetected) {
-      //  TODO
-      FASoutputs = _mlService.isFaceSpoofedWithModel(
+      // FASoutputs = _mlService.isFaceSpoofedWithModel(
+      //     image, _faceDetectorService.faces[0]);
+
+      final results = await _mlService.MODIFIEDisFaceSpoofedWithModel(
           image, _faceDetectorService.faces[0]);
-      _mlService.setCurrentPrediction(image, _faceDetectorService.faces[0]);
+
+      if (results != null) {
+        // Access processedImage and probabilities from the list
+        processedImage = results[0] as imglib.Image;
+        final FASoutputs = results[1] as List<double>;
+
+        _mlService.setCurrentPrediction(image, _faceDetectorService.faces[0]);
+      } else {
+        // Handle the case where results are null (e.g., an error occurred)
+        print('Error: No results returned from MODIFIEDisFaceSpoofedWithModel');
+      }
     }
+
     if (mounted) setState(() {});
   }
 
@@ -100,6 +118,41 @@ class SignInState extends State<SignIn> {
     _start();
   }
 
+  // // ORIGINAL
+  // Future<void> onTap() async {
+  //   await takePicture();
+
+  //   // if the probability of FASoutputs then return warning page
+  //   // else continue to sign in page
+  //   final outputs = await FASoutputs;
+  //   if (outputs != null && outputs.isNotEmpty && outputs[0] > 0.5) {
+  //     // display a text box saying that the user is a spoof
+  //     showDialog(
+  //       context: context,
+  //       builder: (context) => AlertDialog(
+  //         content: Text('Spoof detected!'),
+  //       ),
+  //     );
+  //   } else {
+  //     if (_faceDetectorService.faceDetected) {
+  //       User? user = await _mlService.predict();
+  //       if (user != null) {
+  //         var bottomSheetController = scaffoldKey.currentState!
+  //             .showBottomSheet((context) => signInSheet(user: user));
+  //         bottomSheetController.closed.whenComplete(_reload);
+  //       } else {
+  //         // If user is null, navigate to another page
+  //         Navigator.of(context).push(
+  //           MaterialPageRoute(
+  //             builder: (context) => WarningPage(),
+  //           ),
+  //         );
+  //       }
+  //     }
+  //   }
+  // }
+
+  // MODIFIED
   Future<void> onTap() async {
     await takePicture();
 
@@ -114,16 +167,32 @@ class SignInState extends State<SignIn> {
           content: Text('Spoof detected!'),
         ),
       );
-
-      // Navigator.of(context).push(
-      //   MaterialPageRoute(
-      //     builder: (context) => WarningPage(),
-      //   ),
-      // );
     } else {
       if (_faceDetectorService.faceDetected) {
         User? user = await _mlService.predict();
         if (user != null) {
+          // Display processedImage in a popup dialog
+          showDialog(
+            context: context,
+            builder: (context) => Dialog(
+              child: Container(
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (processedImage != null)
+                      Image.memory(
+                          Uint8List.fromList(imglib.encodePng(processedImage))),
+                    Text('Processed Image'),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('Close'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
           var bottomSheetController = scaffoldKey.currentState!
               .showBottomSheet((context) => signInSheet(user: user));
           bottomSheetController.closed.whenComplete(_reload);
