@@ -38,67 +38,67 @@ class MLService {
     return session;
   }
 
-  // ORIGINAL
-  Future<List<double>?> isFaceSpoofedWithModel(
-      CameraImage cameraImage, Face? face) async {
-    print("===> isFaceSpoofedWithModel Starts");
+  // // ORIGINAL
+  // Future<List<double>?> isFaceSpoofedWithModel(
+  //     CameraImage cameraImage, Face? face) async {
+  //   print("===> isFaceSpoofedWithModel Starts");
 
-    try {
-      // Assuming you have a method to load the model from assets
-      final session = await loadModelFromAssets();
+  //   try {
+  //     // Assuming you have a method to load the model from assets
+  //     final session = await loadModelFromAssets();
 
-      if (face == null) throw Exception('Face is null');
+  //     if (face == null) throw Exception('Face is null');
 
-      Future<List> input = _preProcess(cameraImage, face);
+  //     Future<List> input = _preProcess(cameraImage, face);
 
-      // Create OrtValue from input
-      // final shape = [1, 3, 128, 128];
-      final shape = [1, 3, 80, 80];
-      // final shape = [1, 80, 80, 3];
-      final inputOrt =
-          OrtValueTensor.createTensorWithDataList(await input, shape);
-      final inputName = session.inputNames[0];
+  //     // Create OrtValue from input
+  //     // final shape = [1, 3, 128, 128];
+  //     final shape = [1, 3, 80, 80];
+  //     // final shape = [1, 80, 80, 3];
+  //     final inputOrt =
+  //         OrtValueTensor.createTensorWithDataList(await input, shape);
+  //     final inputName = session.inputNames[0];
 
-      // Create inputs map
-      final inputs = {inputName: inputOrt};
+  //     // Create inputs map
+  //     final inputs = {inputName: inputOrt};
 
-      // Create run options
-      final runOptions = OrtRunOptions();
+  //     // Create run options
+  //     final runOptions = OrtRunOptions();
 
-      // Run the model
-      final outputs = session.run(runOptions, inputs);
+  //     // Run the model
+  //     final outputs = session.run(runOptions, inputs);
 
-      final FAStensor = outputs[0]?.value;
+  //     final FAStensor = outputs[0]?.value;
 
-      print("===> outputs.length: " + outputs.length.toString());
-      print("===> FAStensor: " + FAStensor.toString());
+  //     print("===> outputs.length: " + outputs.length.toString());
+  //     print("===> FAStensor: " + FAStensor.toString());
 
-      List<double> FASTensorList = [];
+  //     List<double> FASTensorList = [];
 
-      if (FAStensor != null &&
-          FAStensor is List<List<double>> &&
-          FAStensor.isNotEmpty) {
-        FASTensorList = FAStensor[0];
-      }
+  //     if (FAStensor != null &&
+  //         FAStensor is List<List<double>> &&
+  //         FAStensor.isNotEmpty) {
+  //       FASTensorList = FAStensor[0];
+  //     }
 
-      // use softmax to get probabilities of the FASTensorList
-      List<double> probabilities = softmax(FASTensorList);
-      // probabilities = [0.6734, 0.3266];
-      // probabilities = [0.3349, 0.6651];
-      print("===> probabilities: " +
-          probabilities.toString()); // prints the probabilities
+  //     // use softmax to get probabilities of the FASTensorList
+  //     List<double> probabilities = softmax(FASTensorList);
+  //     // probabilities = [0.6734, 0.3266];
+  //     // probabilities = [0.3349, 0.6651];
+  //     print("===> probabilities: " +
+  //         probabilities.toString()); // prints the probabilities
 
-      // release onnx components
-      inputOrt.release();
-      runOptions.release();
-      session.release();
-      print("===> isFaceSpoofedWithModel Ends");
-      return probabilities;
-    } catch (e) {
-      print('An error occurred: $e');
-      return null;
-    }
-  }
+  //     // release onnx components
+  //     inputOrt.release();
+  //     runOptions.release();
+  //     session.release();
+  //     print("===> isFaceSpoofedWithModel Ends");
+  //     return probabilities;
+  //   } catch (e) {
+  //     print('An error occurred: $e');
+  //     return null;
+  //   }
+  // }
 
   // MODIFIED
   Future<List?> MODIFIEDisFaceSpoofedWithModel(
@@ -165,29 +165,29 @@ class MLService {
     }
   }
 
-  // ORIGINAL
-  Future<List> _preProcess(CameraImage image, Face faceDetected) async {
-    imglib.Image croppedImage = _cropFace(image, faceDetected);
+  // // ORIGINAL
+  // Future<List> _preProcess(CameraImage image, Face faceDetected) async {
+  //   imglib.Image croppedImage = _cropFace(image, faceDetected);
 
-    imglib.Image img;
-    // img = imglib.copyResizeCropSquare(croppedImage, 128);
-    img = imglib.copyResizeCropSquare(croppedImage, 80);
-    final directory = await path.getApplicationDocumentsDirectory();
-    final file = File(join(directory.path, 'resized.png'));
-    // print the image path
-    print(file.path);
-    await file.writeAsBytes(imglib.encodePng(img));
-    // new File("resized.png").writeAsBytesSync(imglib.encodePng(img));
+  //   imglib.Image img;
+  //   // img = imglib.copyResizeCropSquare(croppedImage, 128);
+  //   img = imglib.copyResizeCropSquare(croppedImage, 80);
+  //   final directory = await path.getApplicationDocumentsDirectory();
+  //   final file = File(join(directory.path, 'resized.png'));
+  //   // print the image path
+  //   print(file.path);
+  //   await file.writeAsBytes(imglib.encodePng(img));
+  //   // new File("resized.png").writeAsBytesSync(imglib.encodePng(img));
 
-    // Float32List imageAsList = imageToByteListFloat32(croppedImage, 128);
-    Float32List imageAsList = imageToByteListFloat32(croppedImage, 80);
+  //   // Float32List imageAsList = imageToByteListFloat32(croppedImage, 128);
+  //   Float32List imageAsList = imageToByteListFloat32(croppedImage, 80);
 
-    // normalization
-    for (int i = 0; i < imageAsList.length; i++) {
-      imageAsList[i] = imageAsList[i];
-    }
-    return imageAsList;
-  }
+  //   // normalization
+  //   for (int i = 0; i < imageAsList.length; i++) {
+  //     imageAsList[i] = imageAsList[i];
+  //   }
+  //   return imageAsList;
+  // }
 
   // MODIFIED
   Future<List> _MODIFIEDpreProcess(CameraImage image, Face faceDetected) async {
