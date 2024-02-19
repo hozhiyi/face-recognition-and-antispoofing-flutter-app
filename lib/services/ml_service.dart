@@ -21,81 +21,6 @@ class MLService {
   List get predictedData => _predictedData;
   double dist = 0;
 
-  // = = = = = = = = = = = = = = = //
-  //   FACE RECOGNITION  (TFLITE)  //
-  // = = = = = = = = = = = = = = = //
-  Future initialize() async {
-    late Delegate delegate;
-    try {
-      if (Platform.isAndroid) {
-        delegate = GpuDelegateV2(
-          options: GpuDelegateOptionsV2(isPrecisionLossAllowed: false),
-        );
-      } else if (Platform.isIOS) {
-        delegate = GpuDelegate(
-          options: GpuDelegateOptions(
-            allowPrecisionLoss: true,
-          ),
-        );
-      }
-      var interpreterOptions = InterpreterOptions()..addDelegate(delegate);
-
-      this._interpreter = await Interpreter.fromAsset(
-          'assets/ep050-loss23.614.tflite', //mobilefacenet.tflite
-          options: interpreterOptions);
-    } catch (e) {
-      print('Failed to load model.');
-      print(e);
-    }
-  }
-
-  Future<void> setCurrentPrediction(CameraImage cameraImage, Face? face) async {
-    if (_interpreter == null) throw Exception('Interpreter is null');
-    if (face == null) throw Exception('Face is null');
-
-    // List input = _preProcess(cameraImage, face);
-    // _preProcess starts
-    imglib.Image croppedImage = _cropFace(cameraImage, face);
-
-    // save the cropped image
-    // await saveImage('assets/croppedImage-fr.jpg', croppedImage);
-
-    imglib.Image img;
-    img = imglib.copyResizeCropSquare(croppedImage, 112);
-    List input = imageToByteListFloat32(img, 112);
-    // _preProcess ends
-
-    // try {
-    //   // save the resized img as jpg
-    //   final png = imglib.encodePng(img);
-    //   // use _localFile to save the image
-    //   File file = await _localFile;
-    //   await File('assets/resizedImage-fr.png').writeAsBytes(png);
-    // } catch (e) {
-    //   print('Error: $e');
-    // }
-
-    input = input.reshape([1, 112, 112, 3]);
-    print("==> input : " + input.toString());
-    List output = List.generate(1, (index) => List.filled(256, 0));
-
-    this._interpreter?.run(input, output);
-
-    // print("==> ori output : " + output.toString());
-
-    output = output.reshape([256]);
-
-    // print("==> mod output : " + output.toString());
-
-    this._predictedData = List.from(output);
-  }
-
-  Future<User?> predict() async {
-    // CHECK
-    // print("===> this._predictedData" + this._predictedData.toString());
-    return _searchResult(this._predictedData);
-  }
-
   // = = = = = = = = = = = //
   //  ANTI SPOOFING (onnx) //
   // = = = = = = = = = = = //
@@ -240,14 +165,6 @@ class MLService {
     }
   }
 
-  List<double> softmax(List<double> scores) {
-    double maxScore = scores.reduce(max);
-    List<double> expScores =
-        scores.map((score) => exp(score - maxScore)).toList();
-    double sumExpScores = expScores.reduce((a, b) => a + b);
-    return expScores.map((score) => score / sumExpScores).toList();
-  }
-
   // ORIGINAL
   Future<List> _preProcess(CameraImage image, Face faceDetected) async {
     imglib.Image croppedImage = _cropFace(image, faceDetected);
@@ -294,6 +211,76 @@ class MLService {
       imageAsList[i] = imageAsList[i];
     }
     return [img, imageAsList];
+  }
+
+  // = = = = = = = = = = = = = = = //
+  //   FACE RECOGNITION  (TFLITE)  //
+  // = = = = = = = = = = = = = = = //
+  Future initialize() async {
+    late Delegate delegate;
+    try {
+      if (Platform.isAndroid) {
+        delegate = GpuDelegateV2(
+          options: GpuDelegateOptionsV2(isPrecisionLossAllowed: false),
+        );
+      } else if (Platform.isIOS) {
+        delegate = GpuDelegate(
+          options: GpuDelegateOptions(
+            allowPrecisionLoss: true,
+          ),
+        );
+      }
+      var interpreterOptions = InterpreterOptions()..addDelegate(delegate);
+
+      this._interpreter = await Interpreter.fromAsset(
+          'assets/ep050-loss23.614.tflite', //mobilefacenet.tflite
+          options: interpreterOptions);
+    } catch (e) {
+      print('Failed to load model.');
+      print(e);
+    }
+  }
+
+  Future<void> setCurrentPrediction(CameraImage cameraImage, Face? face) async {
+    if (_interpreter == null) throw Exception('Interpreter is null');
+    if (face == null) throw Exception('Face is null');
+
+    // List input = _preProcess(cameraImage, face);
+    // _preProcess starts
+    imglib.Image croppedImage = _cropFace(cameraImage, face);
+
+    // save the cropped image
+    // await saveImage('assets/croppedImage-fr.jpg', croppedImage);
+
+    imglib.Image img;
+    img = imglib.copyResizeCropSquare(croppedImage, 112);
+    List input = imageToByteListFloat32(img, 112);
+    // _preProcess ends
+
+    input = input.reshape([1, 112, 112, 3]);
+    print("==> input : " + input.toString());
+    List output = List.generate(1, (index) => List.filled(256, 0));
+
+    this._interpreter?.run(input, output);
+    // print("==> ori output : " + output.toString());
+
+    output = output.reshape([256]);
+    // print("==> mod output : " + output.toString());
+
+    this._predictedData = List.from(output);
+  }
+
+  Future<User?> predict() async {
+    // print("===> this._predictedData" + this._predictedData.toString());
+    return _searchResult(this._predictedData);
+  }
+
+  List<double> softmax(List<double> scores) {
+    double maxScore = scores.reduce(max);
+    List<double> expScores =
+        scores.map((score) => exp(score - maxScore)).toList();
+    double sumExpScores = expScores.reduce((a, b) => a + b);
+    return expScores.map((score) => score / sumExpScores).toList();
   }
 
   imglib.Image _cropFace(CameraImage image, Face faceDetected) {
