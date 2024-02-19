@@ -196,12 +196,17 @@ class MLService {
     imglib.Image img;
     // img = imglib.copyResizeCropSquare(croppedImage, 128);
     img = imglib.copyResizeCropSquare(croppedImage, 80);
-    final directory = await path.getApplicationDocumentsDirectory();
-    final file = File(join(directory.path, 'resized.png'));
-    // print the image path
-    print(file.path);
-    await file.writeAsBytes(imglib.encodePng(img));
-    // new File("resized.png").writeAsBytesSync(imglib.encodePng(img));
+    // final directory = await path.getApplicationDocumentsDirectory();
+    // final file = File(join(directory.path, 'resized.png'));
+    // await file.writeAsBytes(imglib.encodePng(img));
+    final directory = await path.getExternalStorageDirectory();
+    final file = File(join(directory!.path, 'resized.png'));
+    try {
+      await file.writeAsBytes(imglib.encodePng(img));
+      print("===> file.path: " + file.path);
+    } catch (e) {
+      print('Error: $e');
+    }
 
     // Float32List imageAsList = imageToByteListFloat32(croppedImage, 128);
     Float32List imageAsList = imageToByteListFloat32(croppedImage, 80);
